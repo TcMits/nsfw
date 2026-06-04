@@ -1,4 +1,4 @@
-package nsfw
+package nsfw_test
 
 import (
 	"bytes"
@@ -14,23 +14,37 @@ import (
 	_ "image/jpeg"
 	_ "image/png"
 
+	"github.com/TcMits/nsfw"
+	"github.com/TcMits/nsfw/bundle"
+	ort "github.com/shota3506/onnxruntime-purego/onnxruntime"
 	_ "golang.org/x/image/webp"
 )
 
+func must1(err error) {
+	if err != nil {
+		panic(err)
+	}
+}
+
+func must[T any](v T, err error) T {
+	must1(err)
+	return v
+}
+
 func Test_MultipleRuntime(t *testing.T) {
-	rt1 := must(New())
+	rt1 := must(bundle.New(nil))
 	defer rt1.Close()
-	rt2 := must(New())
+	rt2 := must(bundle.New(nil))
 	defer rt2.Close()
-	rt3 := must(New())
+	rt3 := must(bundle.New(nil))
 	defer rt3.Close()
 }
 
 func TestIsSafe(t *testing.T) {
-	detector := must(New())
+	detector := must(bundle.New(nil))
 	defer detector.Close()
 
-	detect := func(img []byte) (bool, Labels) {
+	detect := func(img []byte) (bool, nsfw.Labels) {
 		imgs, _, err := image.Decode(bytes.NewReader(img))
 		must1(err)
 		labels := must(detector.Detect(context.Background(), imgs))
@@ -79,7 +93,22 @@ func BenchmarkDetect(b *testing.B) {
 	img, _, err := (image.Decode(file))
 	must1(err)
 
-	detector := must(New())
+	detector := must(bundle.New(nil))
+	defer detector.Close()
+
+	for b.Loop() {
+		detector.Detect(context.Background(), img)
+	}
+}
+
+func BenchmarkDetectORTOneThread(b *testing.B) {
+	imageFiles := os.DirFS("./testdata")
+	file := must(imageFiles.Open("brooke-cagle-9fHMo1-5Io8-unsplash.jpg"))
+	defer file.Close()
+	img, _, err := (image.Decode(file))
+	must1(err)
+
+	detector := must(bundle.New(&ort.SessionOptions{IntraOpNumThreads: 1}))
 	defer detector.Close()
 
 	for b.Loop() {
@@ -94,7 +123,24 @@ func BenchmarkParallelDetect(b *testing.B) {
 	img, _, err := (image.Decode(file))
 	must1(err)
 
-	detector := must(New())
+	detector := must(bundle.New(nil))
+	defer detector.Close()
+
+	b.RunParallel(func(pb *testing.PB) {
+		for pb.Next() {
+			detector.Detect(context.Background(), img)
+		}
+	})
+}
+
+func BenchmarkParallelDetectORTOneThread(b *testing.B) {
+	imageFiles := os.DirFS("./testdata")
+	file := must(imageFiles.Open("brooke-cagle-9fHMo1-5Io8-unsplash.jpg"))
+	defer file.Close()
+	img, _, err := (image.Decode(file))
+	must1(err)
+
+	detector := must(bundle.New(&ort.SessionOptions{IntraOpNumThreads: 1}))
 	defer detector.Close()
 
 	b.RunParallel(func(pb *testing.PB) {

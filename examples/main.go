@@ -7,7 +7,7 @@ import (
 	_ "image/jpeg"
 	"os"
 
-	"github.com/TcMits/nsfw"
+	"github.com/TcMits/nsfw/bundle"
 )
 
 func must1(err error) {
@@ -28,7 +28,7 @@ func main() {
 	img, _, err := image.Decode(file)
 	must1(err)
 
-	d := must(nsfw.New())
+	d := must(bundle.New(nil))
 	defer d.Close()
 
 	value := must(d.Detect(context.Background(), img))

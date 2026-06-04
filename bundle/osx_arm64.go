@@ -1,6 +1,6 @@
 //go:build darwin && arm64
 
-package nsfw
+package bundle
 
 import _ "embed"
 

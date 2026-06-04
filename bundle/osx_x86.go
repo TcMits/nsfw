@@ -1,6 +1,6 @@
 //go:build darwin && amd64
 
-package nsfw
+package bundle
 
 import _ "embed"
 

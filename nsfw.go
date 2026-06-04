@@ -6,8 +6,6 @@ import (
 	_ "embed"
 	"image"
 	"math"
-	"os"
-	"path"
 	"sync"
 
 	ort "github.com/shota3506/onnxruntime-purego/onnxruntime"
@@ -27,9 +25,8 @@ const (
 )
 
 var (
-	ortPath string
-	rect    = image.Rect(0, 0, width, height)
-	pool    = sync.Pool{New: func() any {
+	rect = image.Rect(0, 0, width, height)
+	pool = sync.Pool{New: func() any {
 		return &poolEntry{
 			inputTensor:  make([]float32, channel*height*width),
 			resizedImage: image.NewNRGBA(rect),
@@ -37,63 +34,23 @@ var (
 	}}
 )
 
-func init() {
-	ortPath = path.Join(os.TempDir(), "onnxruntime/"+fileName)
-
-	if _, err := os.Stat(ortPath); err != nil {
-		if !os.IsNotExist(err) {
-			panic(err)
-		}
-
-		must1(os.MkdirAll(path.Dir(ortPath), os.ModePerm))
-		must1(os.WriteFile(ortPath, onnxRuntimeBytes, os.ModePerm))
-	}
-}
-
-func must1(err error) {
-	if err != nil {
-		panic(err)
-	}
-}
-
-func must[T any](v T, err error) T {
-	must1(err)
-	return v
-}
-
-type Detector struct {
+type DetectSession struct {
 	runtime *ort.Runtime
-	env     *ort.Env
 	session *ort.Session
 }
 
-func New() (*Detector, error) {
-	rt, err := ort.NewRuntime(ortPath, 23)
+func New(runtime *ort.Runtime, env *ort.Env, opts *ort.SessionOptions) (*DetectSession, error) {
+	ss, err := runtime.NewSessionFromReader(env, bytes.NewReader(onnxModelBytes), opts)
 	if err != nil {
 		return nil, err
 	}
 
-	env, err := rt.NewEnv("nsfw", ort.LoggingLevelWarning)
-	if err != nil {
-		return nil, err
-	}
-
-	sess, err := rt.NewSessionFromReader(env, bytes.NewReader(onnxModelBytes), nil)
-	if err != nil {
-		return nil, err
-	}
-
-	return &Detector{
-		runtime: rt,
-		env:     env,
-		session: sess,
-	}, nil
+	return &DetectSession{runtime: runtime, session: ss}, nil
 }
 
-func (d *Detector) Close() error {
-	d.session.Close()
-	d.env.Close()
-	return d.runtime.Close()
+func (ss *DetectSession) Close() error {
+	ss.session.Close()
+	return nil
 }
 
 type poolEntry struct {
@@ -106,7 +63,7 @@ type Labels struct {
 	NSFW   float32 `json:"nsfw"`
 }
 
-func (d *Detector) Detect(ctx context.Context, img image.Image) (Labels, error) {
+func (d *DetectSession) Detect(ctx context.Context, img image.Image) (Labels, error) {
 	entry := pool.Get().(*poolEntry)
 	defer pool.Put(entry)
 
@@ -132,7 +89,9 @@ func (d *Detector) Detect(ctx context.Context, img image.Image) (Labels, error) 
 		return Labels{}, err
 	}
 
-	logits, _, err := ort.GetTensorData[float32](result["logits"])
+	logitsTensor := result["logits"]
+	defer logitsTensor.Close()
+	logits, _, err := ort.GetTensorData[float32](logitsTensor)
 	if err != nil {
 		return Labels{}, err
 	}
