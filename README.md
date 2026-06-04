@@ -45,5 +45,5 @@ func main() {
 
 ## Thanks
 
-- (model)[https://huggingface.co/AdamCodd/vit-base-nsfw-detector]
-- (onnx purego)[https://github.com/shota3506/onnxruntime-purego]
+- [model](https://huggingface.co/AdamCodd/vit-base-nsfw-detector)
+- [onnx purego](https://github.com/shota3506/onnxruntime-purego)
