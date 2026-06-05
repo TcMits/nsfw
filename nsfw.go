@@ -67,6 +67,7 @@ func (d *DetectSession) Detect(ctx context.Context, img image.Image) (Labels, er
 	entry := pool.Get().(*poolEntry)
 	defer pool.Put(entry)
 
+	fill(entry.resizedImage.Pix, 0)
 	draw.BiLinear.Scale(entry.resizedImage, rect, img, img.Bounds(), draw.Over, nil)
 	for y := range height {
 		for x := range width {
@@ -123,5 +124,12 @@ func softMax(input []float32) {
 
 	for i, v := range input {
 		input[i] = float32(math.Exp(float64(v-c)) / s)
+	}
+}
+
+func fill[T any](s []T, v T) {
+	s[0] = v
+	for j := 1; j < len(s); j *= 2 {
+		copy(s[j:], s[:j])
 	}
 }
